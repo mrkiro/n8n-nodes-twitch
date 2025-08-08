@@ -50,6 +50,11 @@ export class Twitch implements INodeType {
                         action: 'Get top games',
                     },
                     {
+                        name: 'Get User',
+                        value: 'getUser',
+                        action: 'Get user details',
+                    },
+                    {
                         name: 'Search Categories',
                         value: 'searchCategories',
                         action: 'Search categories',
@@ -115,6 +120,19 @@ export class Twitch implements INodeType {
                 displayOptions: {
                     show: {
                         operation: ['getTopGames'],
+                    },
+                },
+            },
+            {
+                displayName: 'User Login',
+                name: 'user_login',
+                type: 'string',
+                required: true,
+                default: '',
+                description: 'Login of the user to retrieve',
+                displayOptions: {
+                    show: {
+                        operation: ['getUser'],
                     },
                 },
             },
@@ -245,6 +263,20 @@ export class Twitch implements INodeType {
                     '/games/top',
                     {},
                     { first: limit },
+                );
+                if (Array.isArray(response.data)) {
+                    returnData.push(...response.data);
+                }
+            }
+
+            if (operation === 'getUser') {
+                const userLogin = this.getNodeParameter('user_login', i) as string;
+                const response = await twitchApiRequest.call(
+                    this,
+                    'GET',
+                    '/users',
+                    {},
+                    { login: userLogin },
                 );
                 if (Array.isArray(response.data)) {
                     returnData.push(...response.data);
