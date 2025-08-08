@@ -48,38 +48,55 @@ export class TwitchTrigger implements INodeType {
 				type: 'options',
 				required: true,
 				default: 'stream.online',
-				options: [
-					{
-						name: 'Channel Follow',
-						value: 'channel.follow',
-					},
-					{
-						name: 'Channel Raid',
-						value: 'channel.raid',
-					},
-					{
-						name: 'Channel Update',
-						value: 'channel.update',
-					},
-					{
-						name: 'Stream Offline',
-						value: 'stream.offline',
-					},
-					{
-						name: 'Stream Online',
-						value: 'stream.online',
-					},
-				],
-			},
-			{
-				displayName: 'Channel',
-				name: 'channel_name',
-				type: 'string',
-				required: true,
-				default: '',
-			},
-		],
-	};
+                                options: [
+                                        {
+                                                name: 'Channel Chat Message',
+                                                value: 'channel.chat.message',
+                                        },
+                                        {
+                                                name: 'Channel Follow',
+                                                value: 'channel.follow',
+                                        },
+                                        {
+                                                name: 'Channel Raid',
+                                                value: 'channel.raid',
+                                        },
+                                        {
+                                                name: 'Channel Update',
+                                                value: 'channel.update',
+                                        },
+                                        {
+                                                name: 'Stream Offline',
+                                                value: 'stream.offline',
+                                        },
+                                        {
+                                                name: 'Stream Online',
+                                                value: 'stream.online',
+                                        },
+                                ],
+                        },
+                        {
+                                displayName: 'Channel',
+                                name: 'channel_name',
+                                type: 'string',
+                                required: true,
+                                default: '',
+                        },
+                        {
+                                displayName: 'Bot User ID',
+                                name: 'user_id',
+                                type: 'string',
+                                default: '',
+                                required: true,
+                                description: 'ID of your bot user',
+                                displayOptions: {
+                                        show: {
+                                                event: ['channel.chat.message'],
+                                        },
+                                },
+                        },
+                ],
+        };
 
 	methods = {
 		credentialTest: {
@@ -131,25 +148,38 @@ export class TwitchTrigger implements INodeType {
 	webhookMethods = {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
-				const webhookData = this.getWorkflowStaticData('node');
-				const webhookUrl = this.getNodeWebhookUrl('default');
-				const event = this.getNodeParameter('event') as string;
-				const { data: webhooks } = await twitchApiRequest.call(
-					this,
-					'GET',
-					'/eventsub/subscriptions',
-				);
-				for (const webhook of webhooks) {
-					if (
-						webhook.transport.callback === webhookUrl &&
-						webhook.type === event
-					) {
-						webhookData.webhookId = webhook.id;
-						return true;
-					}
-				}
-				return false;
-			},
+                                const webhookData = this.getWorkflowStaticData('node');
+                                const webhookUrl = this.getNodeWebhookUrl('default');
+                                const event = this.getNodeParameter('event') as string;
+                                const channel = this.getNodeParameter('channel_name') as string;
+                                const userData = await twitchApiRequest.call(
+                                        this,
+                                        'GET',
+                                        '/users',
+                                        {},
+                                        { login: channel },
+                                );
+                                const broadcasterId = userData.data[0].id ?? '';
+                                const botId = this.getNodeParameter('user_id', '') as string;
+                                const { data: webhooks } = await twitchApiRequest.call(
+                                        this,
+                                        'GET',
+                                        '/eventsub/subscriptions',
+                                );
+                                for (const webhook of webhooks) {
+                                        if (
+                                                webhook.transport.callback === webhookUrl &&
+                                                webhook.type === event &&
+                                                webhook.condition.broadcaster_user_id === broadcasterId &&
+                                                (event !== 'channel.chat.message' ||
+                                                        webhook.condition.user_id === botId)
+                                        ) {
+                                                webhookData.webhookId = webhook.id;
+                                                return true;
+                                        }
+                                }
+                                return false;
+                        },
 			async create(this: IHookFunctions): Promise<boolean> {
 				const webhookUrl = this.getNodeWebhookUrl('default');
 				const webhookData = this.getWorkflowStaticData('node');
@@ -162,18 +192,22 @@ export class TwitchTrigger implements INodeType {
 					{},
 					{ login: channel },
 				);
-				const body = {
-					type: event,
-					version: '1',
-					condition: {
-						broadcaster_user_id: userData.data[0].id ?? '',
-					},
-					transport: {
-						method: 'webhook',
-						callback: webhookUrl,
-						secret: 'n8ncreatedSecret',
-					},
-				};
+                                const condition: IDataObject = {
+                                        broadcaster_user_id: userData.data[0].id ?? '',
+                                };
+                                if (event === 'channel.chat.message') {
+                                        condition.user_id = this.getNodeParameter('user_id') as string;
+                                }
+                                const body = {
+                                        type: event,
+                                        version: '1',
+                                        condition,
+                                        transport: {
+                                                method: 'webhook',
+                                                callback: webhookUrl,
+                                                secret: 'n8ncreatedSecret',
+                                        },
+                                };
 				const webhook = await twitchApiRequest.call(
 					this,
 					'POST',

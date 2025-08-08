@@ -5,7 +5,7 @@ import {
     INodeTypeDescription,
 } from 'n8n-workflow';
 
-import { twitchApiRequest } from './GenericFunctions.js';
+import { sendChatMessage, twitchApiRequest } from './GenericFunctions.js';
 
 export class Twitch implements INodeType {
     description: INodeTypeDescription = {
@@ -59,6 +59,11 @@ export class Twitch implements INodeType {
                         value: 'searchChannels',
                         action: 'Search channels',
                     },
+                    {
+                        name: 'Send Chat Message',
+                        value: 'sendChatMessage',
+                        action: 'Send chat message',
+                    },
                 ],
             },
             {
@@ -110,6 +115,57 @@ export class Twitch implements INodeType {
                 displayOptions: {
                     show: {
                         operation: ['getTopGames'],
+                    },
+                },
+            },
+            {
+                displayName: 'Broadcaster ID',
+                name: 'broadcaster_id',
+                type: 'string',
+                required: true,
+                default: '',
+                description: 'ID of the broadcaster',
+                displayOptions: {
+                    show: {
+                        operation: ['sendChatMessage'],
+                    },
+                },
+            },
+            {
+                displayName: 'Sender ID',
+                name: 'sender_id',
+                type: 'string',
+                required: true,
+                default: '',
+                description: 'ID of the bot user sending the message',
+                displayOptions: {
+                    show: {
+                        operation: ['sendChatMessage'],
+                    },
+                },
+            },
+            {
+                displayName: 'Message',
+                name: 'message',
+                type: 'string',
+                required: true,
+                default: '',
+                description: 'Message to send',
+                displayOptions: {
+                    show: {
+                        operation: ['sendChatMessage'],
+                    },
+                },
+            },
+            {
+                displayName: 'Reply To Message ID',
+                name: 'reply_parent_message_id',
+                type: 'string',
+                default: '',
+                description: 'ID of the message to reply to',
+                displayOptions: {
+                    show: {
+                        operation: ['sendChatMessage'],
                     },
                 },
             },
@@ -193,6 +249,25 @@ export class Twitch implements INodeType {
                 if (Array.isArray(response.data)) {
                     returnData.push(...response.data);
                 }
+            }
+
+            if (operation === 'sendChatMessage') {
+                const broadcasterId = this.getNodeParameter('broadcaster_id', i) as string;
+                const senderId = this.getNodeParameter('sender_id', i) as string;
+                const message = this.getNodeParameter('message', i) as string;
+                const replyParentMessageId = this.getNodeParameter(
+                    'reply_parent_message_id',
+                    i,
+                    '',
+                ) as string;
+                const response = await sendChatMessage.call(
+                    this,
+                    broadcasterId,
+                    senderId,
+                    message,
+                    replyParentMessageId || undefined,
+                );
+                returnData.push(response);
             }
         }
 

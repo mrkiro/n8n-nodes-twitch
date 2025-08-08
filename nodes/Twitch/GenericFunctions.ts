@@ -107,5 +107,23 @@ export async function getChannels(this: ILoadOptionsFunctions): Promise<INodePro
 		});
 	}
 
-	return returnData;
+        return returnData;
+}
+
+export async function sendChatMessage(
+        this: IExecuteFunctions,
+        broadcasterId: string,
+        senderId: string,
+        message: string,
+        replyParentMessageId?: string,
+): Promise<any> {
+        const body: IDataObject = {
+                broadcaster_id: broadcasterId,
+                sender_id: senderId,
+                message,
+        };
+        if (replyParentMessageId) {
+                body.reply_parent_message_id = replyParentMessageId;
+        }
+        return twitchApiRequest.call(this, 'POST', '/chat/messages', body);
 }
